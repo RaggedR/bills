@@ -1,0 +1,68 @@
+[
+  {
+    "code": "100",
+    "name": "groceries",
+    "type": "fixed",
+    "category_type": "Expense"
+  },
+  {
+    "code": "200",
+    "name": "take away (food other than supermarket)",
+    "type": "variable",
+    "category_type": "Expense"
+  },
+  {
+    "code": "300",
+    "name": "transport",
+    "type": "fixed",
+    "category_type": "Expense"
+  },
+  {
+    "code": "400",
+    "name": "donations",
+    "type": "variable",
+    "category_type": "Expense"
+  },
+  {
+    "code": "500",
+    "name": "other",
+    "type": "variable",
+    "category_type": "Expense"
+  },
+  {
+    "code": "600",
+    "name": "software expenses",
+    "type": "variable",
+    "category_type": "Expense"
+  },
+  {
+    "code": "700",
+    "name": "health & medical",
+    "type": "variable",
+    "category_type": "Expense"
+  },
+  {
+    "code": "800",
+    "name": "entertainment",
+    "type": "variable",
+    "category_type": "Expense"
+  },
+  {
+    "code": "900",
+    "name": "utilities & phone",
+    "type": "fixed",
+    "category_type": "Expense"
+  },
+  {
+    "code": "1000",
+    "name": "income",
+    "type": "variable",
+    "category_type": "Income"
+  },
+  {
+    "code": "850",
+    "name": "travel",
+    "type": "variable",
+    "category_type": "Expense"
+  }
+]

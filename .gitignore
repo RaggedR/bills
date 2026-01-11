@@ -1,0 +1,26 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Environment
+.env
+
+# Data (user-specific)
+data/transactions.json
+data/merchant_cache.json
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Screenshots (large files)
+*.jpg
+*.png
+
+# Claude Code
+.claude/

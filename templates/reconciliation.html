@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}Bank Statement Reconciliation - Bills{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Bank Statement Reconciliation</h1>
+</div>
+
+<div class="content-grid">
+    <div class="card">
+        <div class="card-header">
+            <h2>Transactions</h2>
+        </div>
+        <div class="filter-bar">
+            <label>Filter:</label>
+            <select id="filterSelect" onchange="loadTransactions()">
+                <option value="unreconciled">Unreconciled</option>
+                <option value="reconciled">Reconciled</option>
+                <option value="all">All</option>
+            </select>
+            <div style="flex: 1;"></div>
+            <button class="btn btn-success" onclick="reconcileAll()">Reconcile All (Accept AI)</button>
+            <label class="btn btn-secondary" style="cursor: pointer;">
+                Upload CSV
+                <input type="file" accept=".csv" onchange="uploadCSV(this)" style="display: none;">
+            </label>
+        </div>
+        <div id="aiStatus" class="ai-status" style="display: none;">
+            <div class="spinner"></div>
+            <span>AI is categorizing transactions...</span>
+        </div>
+        <div class="scrollable-list" id="transactionsList">
+            <!-- Transactions loaded via JS -->
+        </div>
+    </div>
+
+    <div class="card details-panel">
+        <div class="card-header">
+            <h2>Transaction Details</h2>
+        </div>
+        <div class="card-body" id="transactionDetails">
+            <div class="empty-state">
+                <h3>Select a transaction</h3>
+                <p>Click on a transaction to view details and categorize it</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const categories = {{ categories | tojson }};
+let transactions = [];
+let selectedTransaction = null;
+
+function loadTransactions() {
+    const filter = document.getElementById('filterSelect').value;
+    return fetch(`/api/transactions?filter=${filter}`)
+        .then(r => r.json())
+        .then(data => {
+            transactions = data;
+            renderTransactions();
+        });
+}
+
+function renderTransactions() {
+    const list = document.getElementById('transactionsList');
+
+    if (transactions.length === 0) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <h3>No transactions</h3>
+                <p>Upload a CSV file to import transactions</p>
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = transactions.map(t => {
+        const isSelected = selectedTransaction && selectedTransaction.id === t.id;
+        const amount = parseFloat(t.amount);
+        const amountClass = amount < 0 ? 'negative' : 'positive';
+        const amountStr = amount < 0 ? `$${Math.abs(amount).toFixed(2)}` : `+$${amount.toFixed(2)}`;
+
+        const cat = categories.find(c => c.code === t.category_code);
+        const catStr = cat ? `${cat.code} - ${cat.name}` : '';
+
+        return `
+            <div class="transaction-item ${isSelected ? 'active' : ''} ${t.reconciled ? 'reconciled' : ''}"
+                 onclick="selectTransaction('${t.id}')">
+                <div class="transaction-info">
+                    <div class="transaction-description">${escapeHtml(t.description)}</div>
+                    <div class="transaction-date">${formatDate(t.date)}</div>
+                    ${catStr ? `<div class="transaction-category">${catStr}</div>` : ''}
+                </div>
+                <div class="transaction-amount ${amountClass}">${amountStr}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function selectTransaction(id) {
+    selectedTransaction = transactions.find(t => t.id === id);
+    renderTransactions();
+    renderDetails();
+}
+
+function renderDetails() {
+    const panel = document.getElementById('transactionDetails');
+
+    if (!selectedTransaction) {
+        panel.innerHTML = `
+            <div class="empty-state">
+                <h3>Select a transaction</h3>
+                <p>Click on a transaction to view details and categorize it</p>
+            </div>
+        `;
+        return;
+    }
+
+    const t = selectedTransaction;
+    const amount = parseFloat(t.amount);
+    const amountStr = amount < 0 ? `-$${Math.abs(amount).toFixed(2)}` : `+$${amount.toFixed(2)}`;
+
+    const aiSuggested = t.ai_suggested_code;
+    const currentCode = t.category_code || aiSuggested || '';
+
+    panel.innerHTML = `
+        <div class="detail-row">
+            <div>
+                <div class="detail-label">Date</div>
+                <div class="detail-value">${formatDate(t.date)}</div>
+            </div>
+            <div style="text-align: right;">
+                <div class="detail-label">Amount</div>
+                <div class="detail-value">${amountStr}</div>
+            </div>
+        </div>
+
+        <div class="detail-row">
+            <div style="flex: 1;">
+                <div class="detail-label">Description</div>
+                <div class="detail-value">${escapeHtml(t.description)}</div>
+                <button class="btn btn-secondary btn-sm" style="margin-top: 0.5rem;" onclick="lookupMerchant('${escapeHtml(t.description).replace(/'/g, "\\'")}')">
+                    🔍 Lookup merchant
+                </button>
+            </div>
+        </div>
+
+        <div class="category-select">
+            <div class="detail-label">Category</div>
+            ${categories.map(c => {
+                const isAiSuggested = c.code === aiSuggested && !t.category_code;
+                const isSelected = c.code === currentCode;
+                return `
+                    <div class="category-option ${isSelected ? 'selected' : ''} ${isAiSuggested ? 'ai-suggested' : ''}"
+                         onclick="selectCategory('${c.code}')">
+                        ${c.code} - ${c.name}
+                        ${isAiSuggested ? `<span class="ai-badge">AI ${t.ai_confidence || ''}</span>` : ''}
+                    </div>
+                `;
+            }).join('')}
+        </div>
+
+        <div class="form-group">
+            <label for="note">Note (optional)</label>
+            <input type="text" id="note" class="form-control" value="${escapeHtml(t.note || '')}"
+                   placeholder="Add a note about this transaction">
+        </div>
+
+        <button class="btn btn-primary" style="width: 100%;" onclick="reconcileTransaction()">
+            ${t.reconciled ? 'Update Category' : 'Reconcile Transaction'}
+        </button>
+    `;
+}
+
+function selectCategory(code) {
+    if (!selectedTransaction) return;
+
+    // Update UI
+    document.querySelectorAll('.category-option').forEach(el => {
+        el.classList.toggle('selected', el.textContent.trim().startsWith(code));
+    });
+
+    // Store selection temporarily
+    selectedTransaction._selectedCategory = code;
+}
+
+function reconcileTransaction() {
+    if (!selectedTransaction) return;
+
+    const categoryCode = selectedTransaction._selectedCategory ||
+                        selectedTransaction.category_code ||
+                        selectedTransaction.ai_suggested_code;
+
+    if (!categoryCode) {
+        alert('Please select a category');
+        return;
+    }
+
+    const note = document.getElementById('note').value;
+
+    fetch('/api/reconcile', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            transaction_id: selectedTransaction.id,
+            category_code: categoryCode,
+            note: note
+        })
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            // Update local data and refresh
+            selectedTransaction.category_code = categoryCode;
+            selectedTransaction.reconciled = true;
+            selectedTransaction.note = note;
+
+            // Move to next unreconciled transaction
+            const currentIndex = transactions.findIndex(t => t.id === selectedTransaction.id);
+            const nextUnreconciled = transactions.slice(currentIndex + 1).find(t => !t.reconciled);
+
+            if (nextUnreconciled) {
+                selectTransaction(nextUnreconciled.id);
+            } else {
+                loadTransactions();
+            }
+        }
+    });
+}
+
+function uploadCSV(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // Show loading state
+    document.getElementById('aiStatus').style.display = 'flex';
+
+    fetch('/api/upload-csv', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(result => {
+        document.getElementById('aiStatus').style.display = 'none';
+
+        if (result.success) {
+            alert(`Imported ${result.imported} new transactions`);
+            loadTransactions();
+        } else {
+            alert('Error: ' + result.error);
+        }
+    })
+    .catch(err => {
+        document.getElementById('aiStatus').style.display = 'none';
+        alert('Upload failed: ' + err);
+    });
+
+    // Reset input
+    input.value = '';
+}
+
+function reconcileAll() {
+    if (!confirm('Accept all AI suggestions and reconcile all transactions?')) {
+        return;
+    }
+
+    fetch('/api/reconcile-all', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            alert(`Reconciled ${result.reconciled} transactions`);
+            loadTransactions();
+            selectedTransaction = null;
+            renderDetails();
+        }
+    });
+}
+
+function lookupMerchant(description) {
+    // Extract merchant name (first part before multiple spaces)
+    let merchant = description.split(/\s{2,}/)[0].trim();
+    // Remove trailing numbers/codes
+    merchant = merchant.replace(/\s+\d+$/, '').replace(/\s+[A-Z]{2,3}$/, '');
+    // Open Google search
+    window.open(`https://www.google.com/search?q=${encodeURIComponent(merchant)}`, '_blank');
+}
+
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-AU', {year: 'numeric', month: 'short', day: 'numeric'});
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Initial load
+loadTransactions().then(() => {
+    // Check if we should select a specific transaction (from Analysis page)
+    const urlParams = new URLSearchParams(window.location.search);
+    const selectId = urlParams.get('select');
+    if (selectId) {
+        // Change filter to 'all' to ensure we can find reconciled transactions
+        document.getElementById('filterSelect').value = 'all';
+        loadTransactions().then(() => {
+            selectTransaction(selectId);
+            // Scroll the transaction into view
+            const item = document.querySelector(`[onclick="selectTransaction('${selectId}')"]`);
+            if (item) {
+                item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

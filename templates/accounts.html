@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Account Codes - Bills{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Account Codes</h1>
+</div>
+
+<div class="content-grid">
+    <div class="card">
+        <div class="card-header">
+            <h2>Accounts</h2>
+            <button class="btn btn-primary" onclick="showNewForm()">+ New</button>
+        </div>
+        <div class="search-box">
+            <input type="text" placeholder="Search accounts..." id="searchInput" onkeyup="filterAccounts()">
+        </div>
+        <div class="scrollable-list" id="accountsList">
+            {% for cat in categories %}
+            <div class="list-item" data-code="{{ cat.code }}" onclick="selectAccount('{{ cat.code }}')">
+                <div class="list-item-title">{{ cat.code }} - {{ cat.type }} - {{ cat.name }}</div>
+                <div class="list-item-subtitle">{{ cat.category_type }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card details-panel">
+        <div class="card-header">
+            <h2>Account Details</h2>
+        </div>
+        <div class="card-body">
+            <form id="accountForm" onsubmit="saveAccount(event)">
+                <div class="form-group">
+                    <label for="code">Code</label>
+                    <input type="text" id="code" name="code" class="form-control" placeholder="e.g., 100" required>
+                </div>
+                <div class="form-group">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" class="form-control" placeholder="e.g., groceries" required>
+                </div>
+                <div class="form-group">
+                    <label for="type">Type</label>
+                    <select id="type" name="type" class="form-control">
+                        <option value="fixed">Fixed</option>
+                        <option value="variable">Variable</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="category_type">Category Type</label>
+                    <select id="category_type" name="category_type" class="form-control">
+                        <option value="Expense">Expense</option>
+                        <option value="Income">Income</option>
+                        <option value="Asset">Asset</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Save</button>
+                    <button type="button" class="btn btn-danger" id="deleteBtn" onclick="deleteAccount()" style="display: none;">Delete</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedCode = null;
+let isEditing = false;
+
+function showNewForm() {
+    selectedCode = null;
+    isEditing = false;
+    document.getElementById('code').value = '';
+    document.getElementById('name').value = '';
+    document.getElementById('type').value = 'variable';
+    document.getElementById('category_type').value = 'Expense';
+    document.getElementById('code').disabled = false;
+    document.getElementById('deleteBtn').style.display = 'none';
+
+    // Remove active class from all items
+    document.querySelectorAll('.list-item').forEach(item => item.classList.remove('active'));
+}
+
+function selectAccount(code) {
+    selectedCode = code;
+    isEditing = true;
+
+    // Highlight selected item
+    document.querySelectorAll('.list-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.code === code);
+    });
+
+    // Fetch and populate form
+    fetch('/api/categories')
+        .then(r => r.json())
+        .then(categories => {
+            const cat = categories.find(c => c.code === code);
+            if (cat) {
+                document.getElementById('code').value = cat.code;
+                document.getElementById('name').value = cat.name;
+                document.getElementById('type').value = cat.type;
+                document.getElementById('category_type').value = cat.category_type;
+                document.getElementById('code').disabled = true;
+                document.getElementById('deleteBtn').style.display = 'block';
+            }
+        });
+}
+
+function saveAccount(event) {
+    event.preventDefault();
+
+    const data = {
+        code: document.getElementById('code').value,
+        name: document.getElementById('name').value,
+        type: document.getElementById('type').value,
+        category_type: document.getElementById('category_type').value
+    };
+
+    const url = isEditing ? `/api/categories/${selectedCode}` : '/api/categories';
+    const method = isEditing ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            window.location.reload();
+        } else {
+            alert(result.error || 'Failed to save');
+        }
+    });
+}
+
+function deleteAccount() {
+    if (!selectedCode) return;
+
+    if (confirm(`Delete account ${selectedCode}?`)) {
+        fetch(`/api/categories/${selectedCode}`, {method: 'DELETE'})
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    window.location.reload();
+                }
+            });
+    }
+}
+
+function filterAccounts() {
+    const query = document.getElementById('searchInput').value.toLowerCase();
+    document.querySelectorAll('.list-item').forEach(item => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = text.includes(query) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}
