@@ -43,7 +43,7 @@
                 <h2>Spending Comparison</h2>
             </div>
             <div class="card-body">
-                <div class="chart-container" style="height: 300px;">
+                <div class="chart-container" style="height: 400px;">
                     <canvas id="barChart"></canvas>
                 </div>
             </div>
@@ -178,7 +178,6 @@ function renderBarChart() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            indexAxis: 'y',
             plugins: {
                 legend: {
                     display: false
@@ -192,7 +191,7 @@ function renderBarChart() {
                 }
             },
             scales: {
-                x: {
+                y: {
                     ticks: {
                         callback: function(value) {
                             return '$' + value;

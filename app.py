@@ -425,5 +425,13 @@ def clear_transactions():
     return jsonify({'success': True})
 
 
+@app.route('/api/clear-data', methods=['POST'])
+def clear_data():
+    """Clear all transactions and merchant cache."""
+    save_json(TRANSACTIONS_FILE, [])
+    save_json(MERCHANT_CACHE_FILE, {})
+    return jsonify({'success': True})
+
+
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

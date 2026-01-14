@@ -340,7 +340,8 @@ select.form-control {
     padding: 1rem;
     border-bottom: 1px solid #e2e8f0;
     display: flex;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
     align-items: center;
 }
 

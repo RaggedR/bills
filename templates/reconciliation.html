@@ -25,6 +25,7 @@
                 Upload CSV
                 <input type="file" accept=".csv" onchange="uploadCSV(this)" style="display: none;">
             </label>
+            <button class="btn btn-danger" onclick="clearData()">Clear All</button>
         </div>
         <div id="aiStatus" class="ai-status" style="display: none;">
             <div class="spinner"></div>
@@ -264,6 +265,26 @@ function uploadCSV(input) {
 
     // Reset input
     input.value = '';
+}
+
+function clearData() {
+    if (!confirm('Clear all transactions and merchant cache? This cannot be undone.')) {
+        return;
+    }
+
+    fetch('/api/clear-data', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            alert('All data cleared');
+            loadTransactions();
+            selectedTransaction = null;
+            renderDetails();
+        }
+    });
 }
 
 function reconcileAll() {
